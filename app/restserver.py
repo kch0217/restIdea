@@ -17,7 +17,7 @@ class Utility:
     @staticmethod
     def generate_auth_token(user, expiration=600):
         s = Serializer(app.config['SECRET_KEY'], expires_in=expiration)
-        return s.dumps({'id': user['Username']})
+        return s.dumps({'id': user['Email']})
     
     @staticmethod
     def verify_auth_token(token):
@@ -70,9 +70,31 @@ class PasswordRecoveryAPI(Resource):
         success = True
         
         return {'success': success}, 201
+
+class UserHabitAPI(Resource):
+
+    def __init__(self):
+        self.reqparse = reqparse.RequestParser() 
+        self.reqparse.add_argument('Postid', type=str, required=True,
+                               help='Id required',
+                               location='json')
+        self.reqparse.add_argument('Email', type=str, required=True,
+                                   help='Email required',
+                                   location='json')
+        super(UserHabitAPI, self).__init__()
+
     
 
+    def post(self):
+        args = self.reqparse.parse_args()
+        logging.warning("Habit received")
+        success = True
+        
+        return {'success': success}, 201
+
+
 class IdeaAPI(Resource):
+    decorators = [auth.login_required]
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
@@ -83,11 +105,12 @@ class IdeaAPI(Resource):
         super(IdeaAPI, self).__init__()
 
     
-    @auth.login_required
-    def get(self):
+
+    def get(self, email):
         with open('data2.json') as data_file:    
             data = json.load(data_file)
         #logging.warning(request.authentication)
+
         return data
 
 
@@ -108,33 +131,90 @@ class QueryAPI(Resource):
 
 
     def get(self, queries):
-        queryID = app.config["CURRENT_QUERY"]
-        if app.config["CURRENT_QUERY"] == app.config["MAX_QUERY"] :
-            app.config["CURRENT_QUERY"] = 0
-        else:
-            app.config["CURRENT_QUERY"] +=1
-
-        
-        return {"QueryID" : queryID}
-
-
-
-class QueryContentAPI(Resource):
-
-    def __init__(self):
-        self.reqparse = reqparse.RequestParser()
-
-        super(QueryContentAPI, self).__init__()
-
-
-    def get(self, id):
-        logging.warning("QueryID is " + str(id))
         with open('data2.json') as data_file:    
             data = json.load(data_file)
         #logging.warning(request.authentication)
         return data
 
+
+
+class RatingPostAPI(Resource):
+    decorators = [auth.login_required]
+    
+    def __init__(self):
+        self.reqparse = reqparse.RequestParser()
+        self.reqparse.add_argument('Email', type=str, required=True,
+                                   help='Email required',
+                                   location='json')
+        self.reqparse.add_argument('Rating', type=str, required=True,
+                                   help='Rating required',
+                                   location='json')
+        self.reqparse.add_argument('PostID', type=str, required=True,
+                                   help='PostID required',
+                                   location='json')
+
+        super(RatingPostAPI, self).__init__()
+
+    def post(self):
+        args = self.reqparse.parse_args()
+        
+        logging.warning(args)
+        return {'Result': 0}, 201
+
+
+
+#average and individual rating
+class RatingGetAPI(Resource):
+    decorators = [auth.login_required]
+
+    def get(self, postid, email): #0 email means getting average rating
+
+        if email=='0':
+            #get average rating
+            logging.warning("Average rating of "+ str(postid))
+        else:
+            #get individual rating
+            logging.warning("Individual rating of "+ str(postid))
+        return {'rating': 5};
+
+
+
+
+class CommentAPI(Resource):
+
+    decorators = [auth.login_required]
+    
+    def __init__(self):
+        self.reqparse = reqparse.RequestParser()
+        self.reqparse.add_argument('Email', type=str, required=True,
+                                   help='Email required',
+                                   location='json')
+        self.reqparse.add_argument('PostID', type=str, required=True,
+                                   help='PostID required',
+                                   location='json')
+        self.reqparse.add_argument('Content', type=str, required=True,
+                                   help='Password required',
+                                   location='json')
+
+        super(CommentAPI, self).__init__()
+
+    def get(self, postid):
+
+
+        #return all comments of a post with a postid
+        return {'Comment': 'temp'}
+
+    def post(self):
+
+        args = self.reqparse.parse_args()
+        logging.warning(args)
+
+        return {"state": "temp"}, 201
+        
+
 class UserRegAPI(Resource):
+    
+    
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
         self.reqparse.add_argument('UserID', type=str, required=True,
@@ -150,7 +230,7 @@ class UserRegAPI(Resource):
                        help='Email required',
                        location='json')
         super(UserRegAPI, self).__init__()
-
+#modified by Jenny
     def post(self):
         args = self.reqparse.parse_args()
         logging.warning(args)
@@ -164,8 +244,8 @@ class UserAuthAPI(Resource):
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
-        self.reqparse.add_argument('Username', type=str, required=True,
-                                   help='Username required',
+        self.reqparse.add_argument('Email', type=str, required=True,
+                                   help='Email required',
                                    location='json')
         self.reqparse.add_argument('Password', type=str, required=True,
                                    help='Password required',
@@ -173,13 +253,13 @@ class UserAuthAPI(Resource):
         super(UserAuthAPI, self).__init__()
 
         
-
+#modified by Jenny
     def post(self):
         args = self.reqparse.parse_args()
         
 #check with the database
         #use generate_auth_token
-        logging.warning('User: ' + args['Username'])
+        logging.warning('User: ' + args['Email'])
         currentID = Utility.generate_auth_token(args)
         #if (verify_password(currentID, "")):
             #logging.warning("no problem")
@@ -192,10 +272,12 @@ class UserAuthAPI(Resource):
         return {'Token': currentID}, 201
 
 
-api.add_resource(IdeaAPI, '/api/ideas')
+api.add_resource(IdeaAPI, '/api/ideas/<string:email>')
 api.add_resource(UserAuthAPI, '/api/login')
 api.add_resource(PasswordRecoveryAPI, '/api/login/forget')
 api.add_resource(QueryAPI, '/api/ideas/query=<string:queries>')
-api.add_resource(QueryContentAPI, '/api/ideas/queryid=<int:id>')
 api.add_resource(UserRegAPI, '/api/reg')
-
+api.add_resource(CommentAPI, '/api/ideas/comment/<int:postid>')
+api.add_resource(RatingPostAPI, '/api/ideas/rating')
+api.add_resource(RatingGetAPI, '/api/ideas/rating/<int:postid>/<string:email>')
+api.add_resource(UserHabitAPI, '/api/user/habit')
